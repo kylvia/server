@@ -189,6 +189,45 @@ app.get('/article/detail',function (req,res) {
     })
   })
 })
+//param: {id: 'string1'}
+app.get('/article/articleList',function (req,res) {
+  let errSend = {
+    code:101,
+    data:null,
+    message:'查询失败！'
+  }
+  Model.List.fetch(function (err,list) {
+    if(null !== err){
+      res.send(errSend)
+      return
+    }
+
+    let len = list.length
+    let arr = []
+    if(len){
+      list.map(function (item, index) {
+        console.log(item.status)
+        !(+item.status) && arr.push({
+          id:item.articleId,
+          timestamp:item.timestamp,
+          title:item.title,
+          status:item.status,
+          classes:item.classes,
+          classesLabel:item.classesLabel,
+        })
+      })
+    }
+
+    res.send({
+      code:100,
+      data:{
+        items:arr,
+        total:list.length
+      },
+      message:'查询成功'
+    })
+  })
+})
 //新增文章
 //param: {id: 'string1'}
 app.post('/article/create',function (req,res) {
@@ -451,12 +490,12 @@ app.post('/sysInfo/update',function (req,res) {
   })*/
 })
 //查找
-app.post('/sysInfo/search',function (req,res) {
+app.post('/sysInfo/list',function (req,res) {
   let _data = req.body;
   let errSend = {
     code:101,
     data:null,
-    message:'修改失败！'
+    message:'查询失败！'
   }
   Model.SysSetting.findOne({name:_data.userName},function (err,setting) {
     if(null !== err || !setting){
@@ -471,7 +510,7 @@ app.post('/sysInfo/search',function (req,res) {
         "motto": setting.motto,
         "aboutMe": setting.aboutMe
       },
-      message:'修改成功！'
+      message:'查询成功！'
     })
 
   })
@@ -493,8 +532,10 @@ app.get('/article/list',function (req,res) {
   let limit = req.query.limit
   let classes = req.query.classes
   let title = req.query.title
-  classes && (query.classes = classes)
-  title && (query.title = title)
+  classes && (query.classes = new RegExp(classes, 'i'))
+  title && (query.title = new RegExp(title, 'i'))
+  console.log('[query]:',query)
+  // var query= new RegExp(req.query.lName, 'i');//模糊查询参数
   Model.List.find(query,function (err,list) {
     assert.equal(null,err);
     let len = list.length
@@ -525,6 +566,33 @@ app.get('/article/list',function (req,res) {
         total:list.length
       },
       message:'查询成功'
+    })
+  })
+})
+//修改
+app.post('/article/updateStatus',function (req,res) {
+  let _data = req.body;
+  let errSend = {
+    code:101,
+    data:null,
+    message:'修改失败！'
+  }
+  console.log(_data)
+  Model.List.findById(_data.id,function (err,resData) {
+    if(null !== err || !resData){
+      res.send(errSend)
+      return
+    }
+    Model.List.update({_id:Object(_data.id)},{$set:{status:_data.status}},function (err) {
+      if(null !== err){
+        res.send(errSend)
+      }else {
+        res.send({
+          code:100,
+          data:null,
+          message:'修改成功！'
+        })
+      }
     })
   })
 })
@@ -563,7 +631,6 @@ const ArticleList = {
   },
   update:function (params) {
     let promise = new Promise(function (resolve,reject) {
-console.log(params)
       Model.List.findOne({articleId:params.articleId},function (err,res) {
         if(null !== err || !res){
           resolve(false)
@@ -579,6 +646,20 @@ console.log(params)
     })
     return promise
 
+  },
+  updateStatus:function () {
+    Model.List.findById({id:params.id},function (err,res) {
+      if(null !== err || !res){
+        resolve(false)
+      }
+      Model.List.update({articleId:params.articleId},{$set:params},function (err) {
+        if(null !== err){
+          resolve(false)
+        }else {
+          resolve(true)
+        }
+      })
+    })
   }
 }
 
