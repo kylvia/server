@@ -249,7 +249,7 @@ app.post('/article/create',function (req,res) {
       comment_disabled: true,
       content: '<p>我是mongoDb测试数据我是测试数据</p><p><img class="wscnph" src="https://www.pv.synpowertech.com/images/banner1.png" data-wscntype="image" data-wscnh="300" data-wscnw="400" data-mce-src="https://www.pv.synpowertech.com/images/banner1.png"></p>"',
       content_short: '我是测试数据',
-      display_time: +new Date(),
+      introduction: +new Date(),
       image_uri: 'https://www.pv.synpowertech.com/images/banner1.png',
       status: 'published',
       tags: [],
@@ -262,6 +262,7 @@ app.post('/article/create',function (req,res) {
         articleId:article._id,
         timestamp: article.display_time,
         title: article.title,
+        content_short: article.content_short,
         status: article.status,
         classes: article.classes,
         classesLabel: classRes && classRes.name || '',
@@ -321,6 +322,7 @@ console.log('[upRes]:',upRes)
           ArticleList.update({
             articleId:_data.id,
             timestamp: _data.display_time,
+            content_short: _data.content_short,
             title: _data.title,
             status: _data.status,
             classes: _data.classes,
@@ -605,6 +607,58 @@ app.post('/article/updateStatus',function (req,res) {
     db.close()
   })
 })*/
+
+const defaultParams = {
+  userName: 'jk'
+}
+//前端
+app.get('/sysInfoFront/list',function (req,res) {
+  let errSend = {
+    code:101,
+    data:null,
+    message:'查询失败！'
+  }
+  Model.SysSetting.findOne({name:defaultParams.userName},function (err,setting) {
+    if(null !== err || !setting){
+      res.send(errSend)
+      return
+    }
+    res.send({
+      code:100,
+      data:{
+        "avater": setting.avater,
+        "sysName": setting.sysName,
+        "motto": setting.motto,
+        "aboutMe": setting.aboutMe
+      },
+      message:'查询成功！'
+    })
+
+  })
+})
+app.get('/userFront/info',function (req,res) {
+  Model.User.findOne({name:defaultParams.userName},function (err,Personal) {
+    let errSend = {
+      code:101,
+      data:null,
+      message:'查询失败！'
+    }
+    assert.equal(null,err);
+    if(Personal){
+      res.send({
+        code:100,
+        data:Personal,
+        message:'登陆成功'
+      })
+    }else {
+      res.send(errSend)
+    }
+    // users.close()
+  })
+})
+
+
+
 
 //文章列表
 const ArticleList = {

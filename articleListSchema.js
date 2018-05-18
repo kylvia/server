@@ -9,6 +9,8 @@ var articleListSchema = new Schema({
   classes: String,
   classesLabel: String,
   display_time: String,
+  introduction: String,
+  content_short: String,
   pageviews: Number,
   createAt:Date,
   updateAt:Date
