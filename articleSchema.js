@@ -10,6 +10,7 @@ var articleSchema = new Schema({
   content_short: String,
   display_time: Number,
   image_uri: String,
+  articleType: Number,
   status: String,
   tags: Array,
   title: String,

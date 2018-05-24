@@ -261,6 +261,7 @@ app.post('/article/create',function (req,res) {
       ArticleList.insert({
         articleId:article._id,
         timestamp: article.display_time,
+        articleType: article.articleType,
         title: article.title,
         content_short: article.content_short,
         status: article.status,
@@ -322,6 +323,7 @@ console.log('[upRes]:',upRes)
           ArticleList.update({
             articleId:_data.id,
             timestamp: _data.display_time,
+            articleType: _data.articleType,
             content_short: _data.content_short,
             title: _data.title,
             status: _data.status,
