@@ -2,18 +2,17 @@ var mongoose = require('mongoose')
 var Schema = mongoose.Schema;
 
 var articleSchema = new Schema({
-  classes: String,
-  classesLabel: String,
-  source_name: String,
-  comment_disabled: Boolean,
-  content: String,
-  content_short: String,
-  display_time: Number,
-  image_uri: String,
-  articleType: Number,
-  status: String,
-  tags: Array,
-  title: String,
+  classes: String, //分类 0、1
+  classesLabel: String, //分类名字 前端、ios..
+  comment_disabled: Boolean, //开启评论
+  content: String, //正文
+  content_short: String, //摘要
+  display_time: Number, //发布时间
+  pageviews: Number, //浏览量
+  image_uri: String, //图片链接
+  articleType: Number, //文章类型 原创、转载
+  status: String, //发布状态  发布、草稿
+  title: String, //标题
   createAt:Date,
   updateAt:Date
 })

@@ -11,6 +11,7 @@ var articleListSchema = new Schema({
   display_time: String,
   introduction: String,
   content_short: String,
+  articleType: Number,
   pageviews: Number,
   createAt:Date,
   updateAt:Date

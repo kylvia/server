@@ -178,51 +178,29 @@ app.post('/article/insertClass',function (req,res) {
 //文章
 //param: {id: 'string1'}
 app.get('/article/detail',function (req,res) {
-
-  Model.Article.findById(req.query.id,function (err,article) {
-    assert.equal(null,err);
-    console.log('[article]:',article)
-    res.send({
-      code:100,
-      data:article,
-      message:'查询成功'
-    })
-  })
-})
-//param: {id: 'string1'}
-app.get('/article/articleList',function (req,res) {
   let errSend = {
     code:101,
     data:null,
     message:'查询失败！'
   }
-  Model.List.fetch(function (err,list) {
+  Model.Article.findById(req.query.id,function (err,article) {
+    // assert.equal(null,err);
     if(null !== err){
       res.send(errSend)
       return
     }
-
-    let len = list.length
-    let arr = []
-    if(len){
-      list.map(function (item, index) {
-        console.log(item.status)
-        !(+item.status) && arr.push({
-          id:item.articleId,
-          timestamp:item.timestamp,
-          title:item.title,
-          status:item.status,
-          classes:item.classes,
-          classesLabel:item.classesLabel,
-        })
-      })
-    }
-
     res.send({
       code:100,
       data:{
-        items:arr,
-        total:list.length
+        classes: article.classes, //分类 0、1
+        comment_disabled: article.comment_disabled, //开启评论
+        content_short: article.content_short, //开启评论
+        content: article.content, //正文
+        display_time: article.display_time, //发布时间
+        pageviews: article.pageviews || 0, //浏览量
+        image_uri: article.image_uri, //图片链接
+        articleType: article.articleType, //文章类型 原创、转载
+        title: article.title, //标题
       },
       message:'查询成功'
     })
@@ -245,42 +223,27 @@ app.post('/article/create',function (req,res) {
     _data = Object.assign({
       classes: "",
       classesLabel: classRes && classRes.name || '',
-      source_name: '原创作者',
       comment_disabled: true,
+      articleType: 0,
+      pageviews: 0,
+      display_time: +(new Date()),
       content: '<p>我是mongoDb测试数据我是测试数据</p><p><img class="wscnph" src="https://www.pv.synpowertech.com/images/banner1.png" data-wscntype="image" data-wscnh="300" data-wscnw="400" data-mce-src="https://www.pv.synpowertech.com/images/banner1.png"></p>"',
       content_short: '我是测试数据',
-      introduction: +new Date(),
       image_uri: 'https://www.pv.synpowertech.com/images/banner1.png',
       status: 'published',
-      tags: [],
       title: 'vue-element-admin'
     },_data)
-
     let newArticle = new Model.Article(_data);
     newArticle.save().then(function (article) {
-      ArticleList.insert({
-        articleId:article._id,
-        timestamp: article.display_time,
-        articleType: article.articleType,
-        title: article.title,
-        content_short: article.content_short,
-        status: article.status,
-        classes: article.classes,
-        classesLabel: classRes && classRes.name || '',
-      }).then(function (data) {
-        if(data){
-          res.send({
-            code:100,
-            data:null,
-            message:'添加成功！'
-          })
-        }else {
-          res.send(errSend)
-        }
-      },function (err) {
-        console.log(err)
+      if(article){
+        res.send({
+          code:100,
+          data:null,
+          message:'添加成功！'
+        })
+      }else {
         res.send(errSend)
-      })
+      }
     }).catch(function (err) {
       console.log(err)
       res.send(errSend)
@@ -300,8 +263,9 @@ app.post('/article/update',function (req,res) {
     data:null,
     message:'修改失败！'
   }
+  console.log('_data:',_data)
   Classes.findById(_data.classes).then(function (classRes) {
-    console.log(classRes)
+    console.log('classRes:',classRes)
     if(!classRes){
       res.send(errSend)
       return
@@ -314,32 +278,21 @@ app.post('/article/update',function (req,res) {
         return
       }
       if(article){
+        _data.classesLabel = classRes.name
         Model.Article.update({_id:_data.id},{$set:_data},function (err,upRes) {
-console.log('[upRes]:',upRes)
           if(!!err){
             res.send(errSend)
             return
           }
-          ArticleList.update({
-            articleId:_data.id,
-            timestamp: _data.display_time,
-            articleType: _data.articleType,
-            content_short: _data.content_short,
-            title: _data.title,
-            status: _data.status,
-            classes: _data.classes,
-            classesLabel: classRes.name
-          }).then(function (data) {
-            if(data){
-              res.send({
-                code:100,
-                data:null,
-                message:'修改成功！'
-              })
-            }else {
-              res.send(errSend)
-            }
-          })
+          if(upRes){
+            res.send({
+              code:100,
+              data:null,
+              message:'修改成功！'
+            })
+          }else {
+            res.send(errSend)
+          }
         })
 
       }else {
@@ -538,23 +491,20 @@ app.get('/article/list',function (req,res) {
   let title = req.query.title
   classes && (query.classes = new RegExp(classes, 'i'))
   title && (query.title = new RegExp(title, 'i'))
-  console.log('[query]:',query)
   // var query= new RegExp(req.query.lName, 'i');//模糊查询参数
-  Model.List.find(query,function (err,list) {
+  Model.Article.find(query,function (err,list) {
     assert.equal(null,err);
     let len = list.length
     let arr = []
-    console.log(list)
+    let resData = []
     if(len){
-      console.log('[list]:',list)
       arr = list.filter(function (value, index) {
         return index>=limit*(page-1) && index<(limit*page-1)
       })
-      let resData = []
       arr.map(function (item, index) {
         resData.push({
-          id:item.articleId,
-          timestamp:item.timestamp,
+          id:item.id,
+          timestamp:item.display_time,
           title:item.title,
           status:item.status,
           classes:item.classes,
@@ -566,7 +516,7 @@ app.get('/article/list',function (req,res) {
     res.send({
       code:100,
       data:{
-        items:arr,
+        items:resData,
         total:list.length
       },
       message:'查询成功'
@@ -581,13 +531,12 @@ app.post('/article/updateStatus',function (req,res) {
     data:null,
     message:'修改失败！'
   }
-  console.log(_data)
-  Model.List.findById(_data.id,function (err,resData) {
+  Model.Article.findById(_data.id,function (err,resData) {
     if(null !== err || !resData){
       res.send(errSend)
       return
     }
-    Model.List.update({_id:Object(_data.id)},{$set:{status:_data.status}},function (err) {
+    Model.Article.update({_id:Object(_data.id)},{$set:{status:_data.status}},function (err) {
       if(null !== err){
         res.send(errSend)
       }else {
@@ -614,6 +563,7 @@ const defaultParams = {
   userName: 'jk'
 }
 //前端
+//param: {id: 'string1'}
 app.get('/sysInfoFront/list',function (req,res) {
   let errSend = {
     code:101,
@@ -656,6 +606,41 @@ app.get('/userFront/info',function (req,res) {
       res.send(errSend)
     }
     // users.close()
+  })
+})
+app.get('/articleFront/list',function (req,res) {
+  let page = req.query.page || 1
+  let limit = req.query.limit || 10
+  Model.Article.find(function (err,list) {
+    assert.equal(null,err);
+    let len = list.length
+    let arr = []
+    if(len){
+      arr = list.filter(function (value, index) {
+        return index>=limit*(page-1) && index<(limit*page-1)
+      })
+      let resData = []
+      arr.map(function (item, index) {
+        !(+item.status) && resData.push({
+          id:item.id,
+          timestamp:item.display_time,
+          articleType:item.articleType,
+          title:item.title,
+          content_short:item.content_short,
+          classesLabel:item.classesLabel,
+          pageviews:item.pageviews || 0
+        })
+      })
+      res.send({
+        code:100,
+        data:{
+          items:resData,
+          total:list.length
+        },
+        message:'查询成功'
+      })
+    }
+
   })
 })
 
@@ -743,7 +728,6 @@ const Classes = {
     return promise
   },
   findById:function (id) {
-    console.log(id)
     let promise = new Promise(function (resolve,reject) {
       Model.ClassesList.findById(id,function (err,classes) {
         if(null !== err){
