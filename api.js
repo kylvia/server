@@ -27,7 +27,6 @@ app.listen(port)
     next();
 });*/
 app.use(cors())
-
 app.post('/login/login',function(req,res){
   let query = {name:req.body.username,pwd:req.body.password}
   Model.User.findOne(query,function (err,users) {
@@ -616,16 +615,19 @@ app.get('/articleFront/list',function (req,res) {
     let len = list.length
     let arr = []
     if(len){
+      console.log('len========',len)
       arr = list.filter(function (value, index) {
-        return index>=limit*(page-1) && index<(limit*page-1)
+        return index>=limit*(page-1) && index<(limit*page)
       })
       let resData = []
       arr.map(function (item, index) {
+        console.log(item.title)
         !(+item.status) && resData.push({
           id:item.id,
           timestamp:item.display_time,
           articleType:item.articleType,
           title:item.title,
+          image_uri:item.image_uri,
           content_short:item.content_short,
           classesLabel:item.classesLabel,
           pageviews:item.pageviews || 0
