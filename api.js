@@ -646,7 +646,37 @@ app.get('/articleFront/list',function (req,res) {
   })
 })
 
-
+function GetXmlHttpObject()
+{
+  var objXMLHttp=null;
+  if (window.XMLHttpRequest)
+  {
+    objXMLHttp=new XMLHttpRequest();
+  }
+  else if (window.ActiveXObject)
+  {
+    objXMLHttp=new ActiveXObject("Microsoft.XMLHTTP");
+  }
+  return objXMLHttp;
+}
+function timedGetText( url, time, callback ){
+  var request = GetXmlHttpObject();
+  var timeout = false;
+  var timer = setTimeout( function(){
+    timeout = true;
+    request.abort();
+  }, time );
+  request.open( "GET", url );
+  request.onreadystatechange = function(){
+    if( request.readyState !== 4 ) return;
+    if( timeout ) return;
+    clearTimeout( timer );
+    if( request.status === 200 ){
+      callback( request.responseText );
+    }
+  }
+  request.send( null );
+}
 
 
 //文章列表

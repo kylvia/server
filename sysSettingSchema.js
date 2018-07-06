@@ -6,7 +6,7 @@ var sysSettingSchema = new Schema({
   sysName:{type: String, required: true, unique: true},
   motto:String,
   aboutMe:String,
-  avater:String,
+  avatar:String,
   createAt:Date,
   updateAt:Date
 })
