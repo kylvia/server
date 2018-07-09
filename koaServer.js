@@ -154,7 +154,7 @@ router.get('/article/classesList',async (ctx, next) => {
 //param: {classes: 'string1'}
 router.post('/article/insertClass',async (ctx, next) => {
 
-  let name = ctx.request.body.classes
+  let name = ctx.request.body.name
   try{
     ctx.body = await new Promise((resolve, reject) => {
       Model.ClassesList.find({name:name},function (err,classes) {
@@ -167,7 +167,8 @@ router.post('/article/insertClass',async (ctx, next) => {
           })
         }else {
           let newClasses = new Model.ClassesList({name:name});
-          newClasses.save(function (err) {
+          newClasses.save(function (err,msg) {
+            console.log(msg)
             assert.equal(null,err)
             resolve({
               code:100,
@@ -193,7 +194,7 @@ router.get('/article/detail',async (ctx, next) => {
   }
   try{
     ctx.body = await new Promise((resolve, reject) => {
-      Model.Article.findById(ctx.request.query.id,function (err,article) {
+      Model.Article.findMessages(ctx.request.query.id,function (err,article) {
         // assert.equal(null,err);
         if(null !== err){
           resolve(errSend)
@@ -211,6 +212,7 @@ router.get('/article/detail',async (ctx, next) => {
             image_uri: article.image_uri, //图片链接
             articleType: article.articleType, //文章类型 原创、转载
             title: article.title, //标题
+            list: article.messageId && article.messageId.msgs || []
           },
           message:'查询成功'
         })
@@ -244,6 +246,7 @@ router.post('/article/create',async (ctx, next) => {
           classesLabel: classRes && classRes.name || '',
           comment_disabled: true,
           articleType: 0,
+          messageId: '',
           pageviews: 0,
           display_time: +(new Date()),
           content: '<p>我是mongoDb测试数据我是测试数据</p><p><img class="wscnph" src="https://www.pv.synpowertech.com/images/banner1.png" data-wscntype="image" data-wscnh="300" data-wscnw="400" data-mce-src="https://www.pv.synpowertech.com/images/banner1.png"></p>"',
@@ -252,20 +255,31 @@ router.post('/article/create',async (ctx, next) => {
           status: 'published',
           title: 'vue-element-admin'
         },_data)
-        let newArticle = new Model.Article(_data);
-        newArticle.save().then(function (article) {
-          if(article){
-            resolve({
-              code:100,
-              data:null,
-              message:'添加成功！'
-            })
-          }else {
+
+        // 新增留言
+        let newMessage = new Model.Message();
+        newMessage.save(function (err,msg) {
+          if(null !== err){
             resolve(errSend)
+            return
           }
-        }).catch(function (err) {
-          console.log(err)
-          reject(errSend)
+          _data.messageId = msg._id
+
+          let newArticle = new Model.Article(_data);
+          newArticle.save().then(function (article) {
+            if(article){
+              resolve({
+                code:100,
+                data:null,
+                message:'添加成功！'
+              })
+            }else {
+              resolve(errSend)
+            }
+          }).catch(function (err) {
+            console.log(err)
+            reject(errSend)
+          })
         })
 
       }).catch(function (promiseErr) {
@@ -735,6 +749,72 @@ router.get('/articleFront/list',async (ctx, next) => {
   }
 })
 
+//留言
+router.post('/messageFront/update',async (ctx, next) => {
+  let _data = ctx.request.body;
+  let errSend = {
+    code:101,
+    data:null,
+    message:'修改失败！'
+  }
+  try{
+    ctx.body = await new Promise((resolve, reject) => {
+      Model.Article.findMessages(_data.id,function (err,msg) {
+        if(err){
+          resolve(errSend)
+          return
+        }else if(!msg.messageId.msgs || JSON.stringify(msg.messageId.msgs) === "[{}]"){
+          Model.Message.update({_id:ObjectId(msg.messageId)},{$set:{
+            msgs: [{
+              username: _data.username, //留言者名字
+              message: _data.message, //留言信息
+            }]
+          }},function (err) {
+            if(null !== err){
+              resolve(errSend)
+            }else {
+              resolve({
+                code:100,
+                data:null,
+                message:'修改成功！'
+              })
+            }
+          })
+        }else {
+          let arr = msg.messageId.msgs
+          arr.push({
+            username: _data.username, //留言者名字
+            message: _data.message, //留言信息
+          })
+          console.log(arr)
+          Model.Message.update({_id:msg.messageId},{$set:{msgs:arr}},function (err) {
+            if(null !== err){
+              resolve(errSend)
+            }else {
+              resolve({
+                code:100,
+                data:null,
+                message:'修改成功！'
+              })
+            }
+          })
+        }
+
+      })
+    })
+  }catch (err){
+    ctx.throw(500);
+  }
+  /*Model.Article.findById(id,function (err,article) {
+    assert.equal(null,err);
+    console.log(article)
+    res.send({
+      code:100,
+      data:article,
+      message:'查询成功'
+    })
+  })*/
+})
 
 //图片上传
 router.post('/articleFront/upload', async function(ctx, next) {

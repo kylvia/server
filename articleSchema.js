@@ -13,6 +13,10 @@ var articleSchema = new Schema({
   articleType: Number, //文章类型 原创、转载
   status: String, //发布状态  发布、草稿
   title: String, //标题
+  messageId: {
+    type: mongoose.Schema.ObjectId,
+    ref: 'Message'
+  },
   createAt:Date,
   updateAt:Date
 })
@@ -35,6 +39,11 @@ articleSchema.statics={
   findById:function (id,cb) {
     return this
       .findOne({_id:id})
+      .exec(cb);
+  },
+  findMessages:function (id,cb) {
+    return this
+      .findOne({_id:id}).populate('messageId')  //关联查询
       .exec(cb);
   }
 };

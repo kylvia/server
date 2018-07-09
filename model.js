@@ -4,6 +4,7 @@ var articleListSchema=require('./articleListSchema');
 var classesListSchema=require('./classesListSchema');
 var articleSchema=require('./articleSchema');
 var sysSettingSchema=require('./sysSettingSchema');
+var messageSchema=require('./messageSchema');
 
 var User = mongoose.model('User',userInfoSchema,'info')
 
@@ -11,6 +12,7 @@ var User = mongoose.model('User',userInfoSchema,'info')
 var List = mongoose.model('List',articleListSchema,'articleList')
 var ClassesList = mongoose.model('ClassesList',classesListSchema,'classesList')
 var Article = mongoose.model('Article',articleSchema,'article')
+var Message = mongoose.model('Message',messageSchema,'message')
 
 //系统设置 sysInfo
 var SysSetting = mongoose.model('SysSetting',sysSettingSchema,'sysSetting')
@@ -19,6 +21,7 @@ var SysSetting = mongoose.model('SysSetting',sysSettingSchema,'sysSetting')
 module.exports = {
   User:User,
   Article:Article,
+  Message:Message,
   SysSetting:SysSetting,
   List:List,
   ClassesList:ClassesList,
