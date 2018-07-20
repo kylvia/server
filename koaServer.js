@@ -14,6 +14,7 @@ app.use(serve(__dirname + '/public/'));
 
 console.log('listening on port '+port);
 var Model = require('./model')
+var dbHelper = require('./dbHelper')
 
 var mongoose=require('mongoose');
 var assert = require("assert");
@@ -132,9 +133,9 @@ router.get('/article/classesList',async (ctx, next) => {
         let arr = []
         if(classes.length){
           classes.map(function (item,index) {
-            let obj = {id:'',name:''}
+            let obj = {}
             obj.id = item._id
-            obj.name = item.name
+            obj.name = item._doc.name
             arr.push(obj)
           })
         }
@@ -168,7 +169,6 @@ router.post('/article/insertClass',async (ctx, next) => {
         }else {
           let newClasses = new Model.ClassesList({name:name});
           newClasses.save(function (err,msg) {
-            console.log(msg)
             assert.equal(null,err)
             resolve({
               code:100,
@@ -187,35 +187,59 @@ router.post('/article/insertClass',async (ctx, next) => {
 //文章
 //param: {id: 'string1'}
 router.get('/article/detail',async (ctx, next) => {
+  let _data = ctx.request.query;
   let errSend = {
     code:101,
     data:null,
     message:'查询失败！'
   }
+  //更新浏览量
+  let _upDateScan
+  let _findDetail = function () {
+    return new Promise(function (resolve, reject) {
+      dbHelper.findDataPopulation(Model.List,{_id:_data.id},'articleId',null,null,null,function (findRes) {
+        if(findRes){
+          const article = findRes.result[0]
+          dbHelper.findDataPopulation(Model.Article,{_id: article.articleId._id},'messageId',null,null,null,function(msgRes) {
+            if(msgRes){
+              const msgs = msgRes.result[0]
+              let mes = []
+              if(msgs.messageId && (JSON.stringify(msgs.messageId.msgs)!= "[{}]")){
+                mes = msgs.messageId.msgs
+              }
+              resolve({
+                code:100,
+                data:{
+                  id: article.articleId._id,
+                  classes: article.classes, //分类 0、1
+                  content_short: article.content_short,
+                  msgid: msgs.messageId._id,
+                  content: article.articleId.content, //正文
+                  display_time: article.display_time, //发布时间
+                  pageviews: article.pageviews || 0, //浏览量
+                  image_uri: article.image_uri, //图片链接
+                  articleType: article.articleType, //文章类型 原创、转载
+                  title: article.title, //标题
+                  list: mes
+                },
+                message:'查询成功'
+              })
+            }else{
+
+            }
+          })
+        }else{
+
+        }
+      })
+    })
+  }
   try{
     ctx.body = await new Promise((resolve, reject) => {
-      Model.Article.findMessages(ctx.request.query.id,function (err,article) {
-        // assert.equal(null,err);
-        if(null !== err){
-          resolve(errSend)
-          return
-        }
-        resolve({
-          code:100,
-          data:{
-            classes: article.classes, //分类 0、1
-            comment_disabled: article.comment_disabled, //开启评论
-            content_short: article.content_short, //开启评论
-            content: article.content, //正文
-            display_time: article.display_time, //发布时间
-            pageviews: article.pageviews || 0, //浏览量
-            image_uri: article.image_uri, //图片链接
-            articleType: article.articleType, //文章类型 原创、转载
-            title: article.title, //标题
-            list: article.messageId && article.messageId.msgs || []
-          },
-          message:'查询成功'
-        })
+      _findDetail().then(res => {
+        resolve(res)
+      }).catch(err => {
+        resolve(err)
       })
     })
   }catch (err){
@@ -233,58 +257,74 @@ router.post('/article/create',async (ctx, next) => {
     data:null,
     message:'新增失败！'
   }
+
+  //查询分类
+  let _getClassFun = function () {
+    return new Promise(function (resolve, reject) {
+      dbHelper.findByIdData(Model.ClassesList,_data.classes,null,null,function (claRes) {
+        if(claRes.success){
+          _data.classesLabel= claRes.result && claRes.result._doc.name || ''
+          resolve(true)
+        }else {
+          reject(errSend)
+        }
+      })
+    })
+  }
+  //新增留言
+  let _newMsgFun = function () {
+    return new Promise(function (resolve, reject) {
+      dbHelper.addData(Model.Message,null,function (newData) {
+        if(newData.success){
+          resolve(newData.result._id)
+        }else {
+          reject(errSend)
+        }
+      })
+    })
+  }
+  //新增详情
+  let _newDetailFun = function (msgId) {
+    return new Promise(function (resolve, reject) {
+      dbHelper.addData(Model.Article,{
+        content: _data.content,
+        messageId: msgId
+      },function (newData) {
+        if(newData.success){
+          resolve(newData.result._id)
+        }else {
+          reject(errSend)
+        }
+      })
+    })
+  }
+  //新增列表
+  let _newListFun = function (articleId) {
+    return new Promise(function (resolve, reject) {
+      _data.articleId = articleId
+      dbHelper.addData(Model.List,_data,function (newData) {
+        if(newData.success){
+          resolve({
+            code:100,
+            data:null,
+            message:'添加成功！'
+          })
+        }else {
+          reject(errSend)
+        }
+      })
+    })
+  }
   try{
     ctx.body = await new Promise((resolve, reject) => {
-
-      Classes.findById(_data.classes).then(function (classRes) {
-        if(!classRes){
-          resolve(errSend)
-          return
-        }
-        _data = Object.assign({
-          classes: "",
-          classesLabel: classRes && classRes.name || '',
-          comment_disabled: true,
-          articleType: 0,
-          messageId: '',
-          pageviews: 0,
-          display_time: +(new Date()),
-          content: '<p>我是mongoDb测试数据我是测试数据</p><p><img class="wscnph" src="https://www.pv.synpowertech.com/images/banner1.png" data-wscntype="image" data-wscnh="300" data-wscnw="400" data-mce-src="https://www.pv.synpowertech.com/images/banner1.png"></p>"',
-          content_short: '我是测试数据',
-          image_uri: 'https://www.pv.synpowertech.com/images/banner1.png',
-          status: 'published',
-          title: 'vue-element-admin'
-        },_data)
-
-        // 新增留言
-        let newMessage = new Model.Message();
-        newMessage.save(function (err,msg) {
-          if(null !== err){
-            resolve(errSend)
-            return
-          }
-          _data.messageId = msg._id
-
-          let newArticle = new Model.Article(_data);
-          newArticle.save().then(function (article) {
-            if(article){
-              resolve({
-                code:100,
-                data:null,
-                message:'添加成功！'
-              })
-            }else {
-              resolve(errSend)
-            }
-          }).catch(function (err) {
-            console.log(err)
-            reject(errSend)
-          })
-        })
-
-      }).catch(function (promiseErr) {
-        console.log(promiseErr)
-        reject(errSend)
+      _getClassFun().then(_newMsgFun).then( res => {
+        return _newDetailFun(res)
+      }).then( res => {
+        return _newListFun(res)
+      }).then( res => {
+        resolve(res)
+      }).catch( err => {
+        resolve(err)
       })
     })
   }catch (err){
@@ -301,56 +341,57 @@ router.post('/article/update',async (ctx, next) => {
     data:null,
     message:'修改失败！'
   }
-  console.log('_data:',_data)
-  try{
-    ctx.body = await new Promise((resolve, reject) => {
-
-      Classes.findById(_data.classes).then(function (classRes) {
-        console.log('classRes:',classRes)
-        if(!classRes){
-          resolve(errSend)
-          return
+  //更新文章详情
+  let _updateArticle = function () {
+    return new Promise(function (resolve, reject) {
+      dbHelper.updateData(Model.Article, {_id: _data.id} ,{$set: {content:_data.content}},null, function (upArticleRes) {
+        if(upArticleRes.success){
+          resolve(true)
+        }else {
+          reject(errSend)
         }
-
-        Model.Article.findById(_data.id,function (err,article) {
-          // assert.equal(null,err,'查找失败');
-          if(null !== err){
-            resolve(errSend)
-            return
-          }
-          if(article){
-            _data.classesLabel = classRes.name
-            Model.Article.update({_id:_data.id},{$set:_data},function (err,upRes) {
-              if(!!err){
-                resolve(errSend)
-                return
-              }
-              if(upRes){
-                resolve({
-                  code:100,
-                  data:null,
-                  message:'修改成功！'
-                })
-              }else {
-                resolve(errSend)
-              }
-            })
-
-          }else {
-            resolve({
-              code:101,
-              data:null,
-              message:'修改失败！'
-            })
-          }
-
-
-        })
-      }).catch(function (promiseErr) {
-        console.log(promiseErr)
-        reject(errSend)
       })
     })
+  }
+  //更新文章列表
+  let _updateList = function (className) {
+    return new Promise(function (resolve, reject) {
+      _data.classesLabel = className
+      dbHelper.updateData(Model.List, {articleId: _data.id} ,{$set: _data},null, function (upListRes) {
+        if(upListRes.success){
+          resolve(true)
+        }else {
+          reject(errSend)
+        }
+      })
+    })
+  }
+  //查询分类
+  let _searchClasses = function () {
+    return new Promise(function (resolve, reject) {
+      dbHelper.findByIdData(Model.ClassesList, _data.classes , null,null, function (searchRes) {
+        if(searchRes.success){
+          resolve(searchRes.result._doc.name)
+        }else {
+          reject(errSend)
+        }
+      })
+    })
+  }
+  try{
+    ctx.body = await new Promise((resolve, reject) => {
+      _searchClasses().then(_updateArticle()).then(res => {
+        _updateList(res)
+      }).then(() => {
+        resolve({
+          code:100,
+          data:null,
+          message:'修改成功！'
+        })
+      }).catch(err => {
+            resolve(err)
+          })
+      })
   }catch (err){
     ctx.throw(500);
   }
@@ -365,47 +406,79 @@ router.post('/article/delete',async (ctx, next) => {
     data:null,
     message:'删除失败！'
   }
-  try{
-    ctx.body = await new Promise((resolve, reject) => {
-
-      Model.Article.findById(id,function (err,article) {
-        // assert.equal(null,err,'查找失败');
-        if(null !== err){
-          resolve(errSend)
-          return
+  //删除文章
+  let _articalFunc = function (articleId) {
+    return new Promise(function (resolve, reject) {
+      dbHelper.removeById(Model.Article,articleId,null,function (articalRes) {
+        if(articalRes.success){
+          resolve(true)
+        }else {
+          reject(errSend)
         }
-        if(article){
-          Model.Article.findByIdAndRemove({_id:id},function (err,numberAffected) {
-            assert.equal(null,err)
-            if(null !== err){
-              resolve(errSend)
-              return
+      })
+    })
+  }
+  //删除留言
+  let _msgFunc = function (articleId) {
+    return new Promise(function (resolve, reject) {
+      dbHelper.findByIdData(Model.Article,articleId,null,null ,function (articalRes) {
+        if(articalRes.success){
+          const msgId = articalRes.result.messageId
+          dbHelper.removeById(Model.Message,msgId,null,function (delRes) {
+            if(delRes.success){
+              resolve(true)
+            }else {
+              reject(errSend)
             }
-            resolve({
-              code:100,
-              data:null,
-              message:'删除成功！'
-            })
           })
         }else {
           resolve(errSend)
         }
-
       })
+    })
+  }
+  //查找列表
+  let _searchFunc = function () {
+    return new Promise(function (resolve, reject) {
+      dbHelper.findByIdData(Model.List,id ,null,null,function (searchRes) {
+        if(searchRes.success){
+          resolve(searchRes.result.articleId)
+        }else {
+          resolve(errSend)
+        }
+      })
+    })
+  }
+  //删除列表
+  let _detailFunc = function () {
+    return new Promise(function (resolve, reject) {
+      dbHelper.removeById(Model.List, id,null ,function (delRes) {
+        if(delRes.success){
+          resolve(true)
+        }else {
+          resolve(errSend)
+        }
+      })
+    })
+  }
+  try{
+    ctx.body = await new Promise((resolve, reject) => {
+      _searchFunc().then(res => {
+        _msgFunc(res).then(_articalFunc(res)).then(_detailFunc()).then(() => {
+          resolve({
+            code:100,
+            data:null,
+            message:'删除成功！'
+          })
+        })
+      }).catch(function (err) {
+        resolve(err)
+      })
+
     })
   }catch (err){
     ctx.throw(500);
   }
-
-  /*Model.Article.findById(id,function (err,article) {
-    assert.equal(null,err);
-    console.log(article)
-    res.send({
-      code:100,
-      data:article,
-      message:'查询成功'
-    })
-  })*/
 })
 //系统设置
 //新增
@@ -473,12 +546,11 @@ router.post('/sysInfo/update',async (ctx, next) => {
     sysName:'D&K',
     motto:'',
     aboutMe:'',
-    avatar:[]
+    avatar:''
   },_data)
   try{
     ctx.body = await new Promise((resolve, reject) => {
       Model.SysSetting.findOne({name:_data.userName},function (err,setting) {
-        console.log(setting)
         if(null !== err || !setting){
           resolve(errSend)
           return
@@ -563,10 +635,19 @@ router.get('/article/list',async (ctx, next) => {
   classes && (query.classes = new RegExp(classes, 'i'))
   title && (query.title = new RegExp(title, 'i'))
   // var query= new RegExp(ctx.request.query.lName, 'i');//模糊查询参数
+
+  let errSend = {
+    code:101,
+    data:null,
+    message:'查询失败！'
+  }
   try{
     ctx.body = await new Promise((resolve, reject) => {
-      Model.Article.find(query,function (err,list) {
-        assert.equal(null,err);
+      Model.List.find(query,function (err,list) {
+        if(null !== err){
+          resolve(errSend)
+          return
+        }
         let len = list.length
         let arr = []
         let resData = []
@@ -577,7 +658,7 @@ router.get('/article/list',async (ctx, next) => {
           arr.map(function (item, index) {
             resData.push({
               id:item.id,
-              timestamp:item.display_time,
+              display_time:item.display_time,
               title:item.title,
               status:item.status,
               classes:item.classes,
@@ -610,38 +691,22 @@ router.post('/article/updateStatus',async (ctx, next) => {
   }
   try{
     ctx.body = await new Promise((resolve, reject) => {
-
-      Model.Article.findById(_data.id,function (err,resData) {
-        if(null !== err || !resData){
+      dbHelper.updateById(Model.List,_data.id ,{$set:{status:_data.status}},null,function (updateRes) {
+        if(updateRes.success){
+          resolve({
+            code:100,
+            data:null,
+            message:'修改成功！'
+          })
+        }else {
           resolve(errSend)
-          return
         }
-        Model.Article.update({_id:Object(_data.id)},{$set:{status:_data.status}},function (err) {
-          if(null !== err){
-            resolve(errSend)
-          }else {
-            resolve({
-              code:100,
-              data:null,
-              message:'修改成功！'
-            })
-          }
-        })
       })
     })
   }catch (err){
     ctx.throw(500);
   }
 })
-/*MongoClient.connect(Urls,function (err,db) {
-  assert.equal(null,err);
-
-  db.collection("vueTest").insert({name:"xiaoming",pwd:'159647'},function (err,res) {
-    assert.equal(null,err)
-    console.log(res)
-    db.close()
-  })
-})*/
 
 const defaultParams = {
   userName: 'jk'
@@ -705,43 +770,186 @@ router.get('/userFront/info',async (ctx, next) => {
   }
 })
 router.get('/articleFront/list',async (ctx, next) => {
+  let query = {}
   let page = ctx.request.query.page || 1
   let limit = ctx.request.query.limit || 10
-  try{
-    ctx.body = await new Promise((resolve, reject) => {
-      Model.Article.find(function (err,list) {
-        assert.equal(null,err);
-        let len = list.length
-        let arr = []
-        if(len){
-          console.log('len========',len)
+  let classes = ctx.request.query.classes
+  classes && (query.classes = new RegExp(classes, 'i'))
+  let errSend = {
+    code:101,
+    data:null,
+    message:'查询失败！'
+  }
+  //获取文章
+  let _articalListFunc = function () {
+    return new Promise(function (resolve, reject) {
+      dbHelper.findData(Model.List,query,null,null,function(articalRes) {
+        if(articalRes.success){
+          const list = articalRes.result
+          let len = list.length
+          let arr = []
           arr = list.filter(function (value, index) {
-            return index>=limit*(page-1) && index<(limit*page)
+            return index >= limit * (page - 1) && index < (limit * page)
           })
           let resData = []
           arr.map(function (item, index) {
-            console.log(item.title)
             !(+item.status) && resData.push({
-              id:item.id,
-              timestamp:item.display_time,
-              articleType:item.articleType,
-              title:item.title,
-              image_uri:item.image_uri,
-              content_short:item.content_short,
-              classesLabel:item.classesLabel,
-              pageviews:item.pageviews || 0
+              id: item.id,
+              display_time: item.display_time,
+              articleType: item.articleType,
+              title: item.title,
+              image_uri: item.image_uri,
+              content_short: item.content_short,
+              classesLabel: item.classesLabel,
+              pageviews: item.pageviews || 0
             })
           })
           resolve({
             code:100,
             data:{
               items:resData,
-              total:list.length
+              total:resData.length
+            },
+            message:'查询成功'
+          })
+        }else {
+          reject({
+            code:100,
+            data:{
+              items:[],
+              total:0
             },
             message:'查询成功'
           })
         }
-
+      })
+    })
+  }
+  try{
+    ctx.body = await new Promise((resolve, reject) => {
+      _articalListFunc().then(res => {
+        resolve(res)
+      }).catch(function (err) {
+        resolve(err)
+      })
+    })
+  }catch (err){
+    ctx.throw(500);
+  }
+})
+//相册
+router.get('/photos/list',async (ctx, next) => {
+  try{
+    ctx.body = await new Promise((resolve, reject) => {
+      let errSend = {
+        code:101,
+        data:null,
+        message:'查询失败！'
+      }
+      Model.Photos.fetch(function (err,ps) {
+        if(err){
+          resolve(errSend)
+        }
+        if(ps){
+          var timeFlag = '';
+          var arrs = []
+          var times = []
+          ps.forEach(function (item, index) {
+            var date = new Date(item.updateAt)
+            var time = date.getFullYear() + '-' + (date.getMonth() + 1) + '-' + date.getDate();
+            if(timeFlag == time || timeFlag == ''){
+              timeFlag = time
+              times.push({
+                src: item.src,
+                _id: item._id,
+                ind: index
+              })
+            }else {
+              arrs.push({
+                time:timeFlag,
+                photos:times
+              })
+              times = []
+              times.push({
+                src: item.src,
+                _id: item._id,
+                ind: index
+              })
+              timeFlag = time
+            }
+          })
+          if(times.length){
+            arrs.push({
+              time:timeFlag,
+              photos:times
+            })
+          }
+          resolve({
+            code:100,
+            data:arrs,
+            message:''
+          })
+        }else {
+          resolve(errSend)
+        }
+        // users.close()
+      })
+    })
+  }catch (err){
+    ctx.throw(500);
+  }
+})
+//新增
+router.post('/photos/insert',async (ctx, next) => {
+  let _data = ctx.request.body;
+  let errSend = {
+    code:101,
+    data:null,
+    message:'上传失败！'
+  }
+  try{
+    ctx.body = await new Promise((resolve, reject) => {
+      let newPhotos = new Model.Photos({src: _data.imgUrl});
+      newPhotos.save(function (err ,res ) {
+        if(null !== err){
+          resolve(errSend)
+          return
+        }
+        // assert.equal(null,err)
+        resolve({
+          code:100,
+          data:res,
+          message:'上传成功！'
+        })
+      })
+    })
+  }catch (err){
+    ctx.throw(500);
+  }
+})
+//删除
+router.post('/photos/delete',async (ctx, next) => {
+  let _data = ctx.request.body;
+  let errSend = {
+    code:101,
+    data:null,
+    message:'删除失败！'
+  }
+  try{
+    ctx.body = await new Promise((resolve, reject) => {
+      Model.Photos.deleteById(_data.id,function (err,del) {
+        if (err) {
+          resolve(errSend)
+        }
+        if (del) {
+          resolve({
+            code: 100,
+            data: '',
+            message: '删除成功'
+          })
+        } else {
+          resolve(errSend)
+        }
       })
     })
   }catch (err){
@@ -764,10 +972,12 @@ router.post('/messageFront/update',async (ctx, next) => {
           resolve(errSend)
           return
         }else if(!msg.messageId.msgs || JSON.stringify(msg.messageId.msgs) === "[{}]"){
-          Model.Message.update({_id:ObjectId(msg.messageId)},{$set:{
+          var currentDate = (new Date())-0;
+          Model.Message.update({_id:msg.messageId._id},{$set:{
             msgs: [{
               username: _data.username, //留言者名字
               message: _data.message, //留言信息
+              time:  currentDate
             }]
           }},function (err) {
             if(null !== err){
@@ -781,12 +991,13 @@ router.post('/messageFront/update',async (ctx, next) => {
             }
           })
         }else {
+          var currentDate = (new Date())-0;
           let arr = msg.messageId.msgs
           arr.push({
             username: _data.username, //留言者名字
             message: _data.message, //留言信息
+            time:  currentDate
           })
-          console.log(arr)
           Model.Message.update({_id:msg.messageId},{$set:{msgs:arr}},function (err) {
             if(null !== err){
               resolve(errSend)
@@ -805,20 +1016,38 @@ router.post('/messageFront/update',async (ctx, next) => {
   }catch (err){
     ctx.throw(500);
   }
-  /*Model.Article.findById(id,function (err,article) {
-    assert.equal(null,err);
-    console.log(article)
-    res.send({
-      code:100,
-      data:article,
-      message:'查询成功'
-    })
-  })*/
 })
 
+//留言
+router.get('/messageFront/list',async (ctx, next) => {
+  let _data = ctx.request.query;
+  let errSend = {
+    code:101,
+    data:null,
+    message:'修改失败！'
+  }
+  try{
+    ctx.body = await new Promise((resolve, reject) => {
+      Model.Message.findById(_data.id,function (err,msg) {
+        if(err){
+          resolve(errSend)
+          return
+        }else {
+          resolve({
+            code:100,
+            data:msg.msgs,
+            message:''
+          })
+        }
+
+      })
+    })
+  }catch (err){
+    ctx.throw(500);
+  }
+})
 //图片上传
 router.post('/articleFront/upload', async function(ctx, next) {
-
   const serverPath = path.join(__dirname, './uploads/')
   // 获取上存图片
   const result = await qn.uploadFile(ctx, {
@@ -826,147 +1055,145 @@ router.post('/articleFront/upload', async function(ctx, next) {
     path: serverPath
   })
   const imgPath = path.join(serverPath, result.imgPath)
+  let qiniu
   // 上传到七牛
-  const qiniu = await qn.upToQiniu(imgPath, result.imgKey)
-  // 上存到七牛之后 删除原来的缓存图片
-  qn.removeTemImage(imgPath)
-  ctx.body = {
-    imgUrl: `http://pb9ts7ae2.bkt.clouddn.com/${qiniu.key}`
+  try{
+    qiniu = await qn.upToQiniu(imgPath, result.imgKey)
+    // 上存到七牛之后 删除原来的缓存图片
+    qn.removeTemImage(imgPath)
+    ctx.body = {
+      code: 100,
+      msg: '',
+      data: {
+        imgUrl: `http://pb9ts7ae2.bkt.clouddn.com/${qiniu.key}`
+      }
+    }
+  }catch (e){
+    ctx.body = {
+      code: 101,
+      msg: '上传失败，网络错误！',
+      data: ''
+    }
+    return
   }
 })
-
-
-
-//文章列表
-const ArticleList = {
-  insert:function (params) {
-    let promise = new Promise(function (resolve,reject) {
-      Model.List.findById(params.articleId,function (err,res) {
-        if(null !== err || res){
-          resolve(false)
-          return
+//获取分类
+router.get('/messageFront/classes',async (ctx, next) => {
+  let _data = ctx.request.query;
+  let errSend = {
+    code:101,
+    data:null,
+    message:'修改失败！'
+  }
+  //获取分类
+  let _searchCla = function () {
+    return new Promise(function (resolve,reject) {
+      dbHelper.findData(Model.ClassesList,null,null,null,function (claRes) {
+        if(claRes.success){
+          resolve(claRes.result)
+        }else {
+          reject(errSend)
         }
-        if(!res){
-          let newArticleList = new Model.List(params);
-          newArticleList.save(function (err, docs) {
-            if(null !== err){
-              resolve(false)
-            }else {
-              resolve(true)
+      })
+    })
+  }
+  //根据分类获取列表
+  let _searchList = function (classes) {
+    return new Promise(function (resolve,reject) {
+      dbHelper.findData(Model.List,{classes:classes},null,null,function (claRes) {
+        if(claRes.success){
+          resolve(claRes.result)
+        }else {
+          resolve([])
+        }
+      })
+    })
+  }
+  //重新组合数据
+  let _setClasses = function () {
+    return new Promise(function (resolve,reject) {
+      let arr=[]
+      let resData = []
+      _searchCla().then(res => {
+        arr=[]
+        console.log('resLen:',res.length)
+        let i=0
+        res.map(function (item, index) {
+          _searchList(item._id).then(listRes => {
+
+            resData = []
+            listRes.map(function (item, index) {
+              !(+item.status) && resData.push({
+                id: item.id
+              })
+            })
+
+            i++
+            arr.push({
+              id:item._id,
+              name:item._doc.name,
+              len:resData.length
+            })
+            console.log('index:',i)
+            if(i === res.length ){
+              resolve(arr)
             }
           })
-        }
-      })
-    })
-    return promise
-  },
-  update:function (params) {
-    let promise = new Promise(function (resolve,reject) {
-      Model.List.findOne({articleId:params.articleId},function (err,res) {
-        if(null !== err || !res){
-          resolve(false)
-        }
-        Model.List.update({articleId:params.articleId},{$set:params},function (err) {
-          if(null !== err){
-            resolve(false)
-          }else {
-            resolve(true)
-          }
         })
-      })
-    })
-    return promise
-
-  },
-  updateStatus:function () {
-    Model.List.findById({id:params.id},function (err,res) {
-      if(null !== err || !res){
-        resolve(false)
-      }
-      Model.List.update({articleId:params.articleId},{$set:params},function (err) {
-        if(null !== err){
-          resolve(false)
-        }else {
-          resolve(true)
-        }
+      }).catch(() => {
+        reject(errSend)
       })
     })
   }
-}
 
-const Classes = {
-  fetch:function () {
-    let promise = new Promise(function (resolve,reject) {
-      Model.ClassesList.fetch(function (err,classes) {
-        // assert.equal(null,err);
-        if(null !== err){
-          reject(err)
-          return
-        }
-        let arr = []
-        if(classes.length){
-          classes.map(function (item,index) {
-            let obj = {id:'',name:''}
-            obj.id = item._id
-            obj.name = item.name
-            arr.push(obj)
-          })
-        }
-        resolve(arr)
-      })
-    })
-    return promise
-  },
-  findById:function (id) {
-    let promise = new Promise(function (resolve,reject) {
-      Model.ClassesList.findById(id,function (err,classes) {
-        if(null !== err){
-          reject(err)
-          return
-        }
-        if(!classes){
-          resolve('')
-          return
-        }
+  try{
+    ctx.body = await new Promise((resolve, reject) => {
+      _setClasses().then(res => {
         resolve({
-          id:classes._id,
-          name:classes.name
+          code:100,
+          data:res,
+          message:'添加成功！'
         })
+      }).catch(() => {
+        resolve(errSend)
       })
+    })
+  }catch (err){
+    ctx.throw(500);
+  }
+})
+//图片上传
+/*router.post('/articleFront/upload', async function(ctx, next) {
+  function uf(imgPath,result){
+    let promise = new Promise((resolve, reject) => {
+      // 上传到七牛
+      const res = qn.upToQiniu(imgPath, result.imgKey)
+      resolve(res)
     })
     return promise
   }
-}
-/*MongoClient.connect(Urls,function (err,db) {
-  assert.equal(null,err);
+  ctx.body = await new Promise((resolve, reject) => {
+    const serverPath = path.join(__dirname, './uploads/')
+    // 获取上存图片
+    const result = qn.uploadFile(ctx, {
+      fileType: 'album',
+      path: serverPath
+    })
+    const imgPath = path.join(serverPath, result.imgPath)
+    uf(imgPath,result).then(function (result) {
+      // 上存到七牛之后 删除原来的缓存图片
+      qn.removeTemImage(imgPath)
+      resolve ({
+        code: 100,
+        msg: '',
+        body: {
+          imgUrl: `http://pb9ts7ae2.bkt.clouddn.com/${qiniu.key}`
+        }
+      })
+    })
 
-  db.collection("vueTest").find({name:"admin"}).toArray(function (err,res) {
-    assert.equal(null,err)
-    console.log(res)
-    db.close()
-  })
-})
-
-MongoClient.connect(Urls,function (err,db) {
-  assert.equal(null,err);
-
-  db.collection("vueTest").update({name:"xiaoming"},{$set:{name:'zhangsan'}},function (err,res) {
-    assert.equal(null,err)
-    console.log(res)
-    db.close()
-  })
-})*/
-
-/*MongoClient.connect(Urls,function (err,db) {
-  assert.equal(null,err);
-
-  db.collection("vueTest").deleteOne({name:"kylvia"},function (err,res) {
-    assert.equal(null,err)
-    console.log(res)
-    db.close()
   })
 })*/
-
 
 app.use(router.routes())
   .use(router.allowedMethods());

@@ -1,17 +1,13 @@
 var mongoose = require('mongoose')
 var Schema = mongoose.Schema;
 
-var articleSchema = new Schema({
-  content: String, //正文
-  messageId: {
-    type: mongoose.Schema.ObjectId,
-    ref: 'Message'
-  },
+var photosSchema = new Schema({
+  src:String,
   createAt:Date,
   updateAt:Date
 })
 
-articleSchema.pre('save',function (next) {
+photosSchema.pre('save',function (next) {
   var currentDate = (new Date())-0;
   this.updateAt = currentDate;
   if(!this.createAt){
@@ -19,23 +15,22 @@ articleSchema.pre('save',function (next) {
   }
   next()
 })
-articleSchema.statics={
+photosSchema.statics={
   fetch:function (cb) {
     return this
       .find({})
-      .sort('meta.updateAt')
+      .sort({'updateAt':-1})
       .exec(cb);
   },
-  /*findById:function (id,cb) {
+  findById:function (id,cb) {
     return this
       .findOne({_id:id})
       .exec(cb);
-  },*/
-  findMessages:function (id,cb) {
+  },
+  deleteById:function (id,cb) {
     return this
-      .findOne({_id:id}).populate('messageId')  //关联查询
+      .remove({_id:id})
       .exec(cb);
   }
 };
-module.exports = articleSchema
-
+module.exports = photosSchema

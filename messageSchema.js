@@ -17,6 +17,7 @@ messageSchema.statics={
   fetch:function (cb) {
     return this
       .find({})
+      .sort({'updateAt':-1})
       .exec(cb);
   },
   findById:function (id,cb) {

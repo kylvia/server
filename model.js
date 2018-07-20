@@ -5,6 +5,7 @@ var classesListSchema=require('./classesListSchema');
 var articleSchema=require('./articleSchema');
 var sysSettingSchema=require('./sysSettingSchema');
 var messageSchema=require('./messageSchema');
+var photosSchema=require('./photosSchema');
 
 var User = mongoose.model('User',userInfoSchema,'info')
 
@@ -17,31 +18,17 @@ var Message = mongoose.model('Message',messageSchema,'message')
 //系统设置 sysInfo
 var SysSetting = mongoose.model('SysSetting',sysSettingSchema,'sysSetting')
 
+//相册
+var Photos = mongoose.model('Photos',photosSchema,'photos')
+
+
 
 module.exports = {
   User:User,
   Article:Article,
   Message:Message,
   SysSetting:SysSetting,
+  Photos:Photos,
   List:List,
   ClassesList:ClassesList,
 }
-/*
-var User = require('./schema')
-var assert = require("assert");
-
-var loginUser = new User({
-  name:'kylvia1',
-  pwd:'125788'
-})
-
-/!*loginUser.save(function (err) {
-  assert.equal(null,err);
-  console.log('User saved successfully!')
-})*!/
-
-User.find({},function (err,users) {
-  assert.equal(null,err);
-  console.log(users);
-    // users.close()
-})*/

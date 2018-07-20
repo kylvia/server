@@ -52,6 +52,7 @@ let qn = {
       formUploader.putFile(uploadToken, key, localFile, putExtra, function (respErr, respBody, respInfo) {
         if (respErr) {
           reject(respErr)
+          return
         }
         if (respInfo.statusCode == 200) {
           resolved(respBody)

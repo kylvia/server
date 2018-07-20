@@ -2,7 +2,7 @@ var mongoose = require('mongoose')
 var Schema = mongoose.Schema;
 
 var classesListSchema = new Schema({
-  name:String,
+  src:String,
   id:String
 })
 
@@ -12,9 +12,14 @@ classesListSchema.statics={
       .find({})
       .exec(cb);
   },
-  findById:function (id,cb) {
+  /*findById:function (id,cb)  {
     return this
       .findOne({_id:id})
+      .exec(cb);
+  },*/
+  deleteById:function (id,cb) {
+    return this
+      .remove({_id:id})
       .exec(cb);
   }
 };
