@@ -2,8 +2,7 @@ var mongoose = require('mongoose')
 var Schema = mongoose.Schema;
 
 var classesListSchema = new Schema({
-  src:String,
-  id:String
+  name:String
 })
 
 classesListSchema.statics={

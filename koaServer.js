@@ -18,7 +18,7 @@ var dbHelper = require('./dbHelper')
 
 var mongoose=require('mongoose');
 var assert = require("assert");
-mongoose.connect('mongodb://localhost:27017/VueDB');
+mongoose.connect('mongodb://127.0.0.1:27017/VueDB');
 const path = require('path')
 var qn=require('./qiniu');
 
@@ -1116,7 +1116,6 @@ router.get('/messageFront/classes',async (ctx, next) => {
       let resData = []
       _searchCla().then(res => {
         arr=[]
-        console.log('resLen:',res.length)
         let i=0
         res.map(function (item, index) {
           _searchList(item._id).then(listRes => {
@@ -1134,7 +1133,6 @@ router.get('/messageFront/classes',async (ctx, next) => {
               name:item._doc.name,
               len:resData.length
             })
-            console.log('index:',i)
             if(i === res.length ){
               resolve(arr)
             }
