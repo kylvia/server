@@ -204,6 +204,7 @@ router.get('/article/detail',async (ctx, next) => {
             if(msgRes){
               const msgs = msgRes.result[0]
               let mes = []
+              _upDateScan = article.pageviews || 0
               if(msgs.messageId && (JSON.stringify(msgs.messageId.msgs)!= "[{}]")){
                 mes = msgs.messageId.msgs
               }
@@ -216,7 +217,7 @@ router.get('/article/detail',async (ctx, next) => {
                   msgid: msgs.messageId._id,
                   content: article.articleId.content, //正文
                   display_time: article.display_time, //发布时间
-                  pageviews: article.pageviews || 0, //浏览量
+                  pageviews: _upDateScan, //浏览量
                   image_uri: article.image_uri, //图片链接
                   articleType: article.articleType, //文章类型 原创、转载
                   title: article.title, //标题
@@ -224,6 +225,12 @@ router.get('/article/detail',async (ctx, next) => {
                 },
                 message:'查询成功'
               })
+              dbHelper.updateById(Model.List,_data.id,{$set:{pageviews : ++_upDateScan}},null,function (res) {
+                if(!res.success){
+                  console.log(res.flag)
+                }
+              })
+
             }else{
 
             }
@@ -660,6 +667,7 @@ router.get('/article/list',async (ctx, next) => {
               id:item.id,
               display_time:item.display_time,
               title:item.title,
+              pageviews:item.pageviews,
               status:item.status,
               classes:item.classes,
               classesLabel:item.classesLabel,
