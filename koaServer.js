@@ -1,8 +1,16 @@
 const Koa = require('koa');
+const fs = require('fs');
+const https = require('https');
 var cors = require('koa2-cors');
 const Router = require('koa-router');
 const serve = require('koa-static');
 const koaBody  = require('koa-body')
+
+var options = {
+    key: fs.readFileSync('./ssl/blog.key'),
+    cert: fs.readFileSync('./ssl/blog.crt')
+};
+
 
 const app = new Koa();
 const router = new Router();
@@ -24,36 +32,43 @@ var qn=require('./qiniu');
 
 
 router.post('/login/login',async (ctx, next) => {
-  let query = {name:ctx.request.body.username,pwd:ctx.request.body.password}
-  const promist = new Promise(function (resolve,reject) {
-    Model.User.findOne(query,function (err,users) {
-      assert.equal(null,err);
-      if(!users){
-        resolve({
-          code:101,
-          data:'',
-          message:'用户名或密码错误'
+    let query = {name:ctx.request.body.username,pwd:ctx.request.body.password}
+    const promist = new Promise(function (resolve,reject) {
+        Model.User.findOne(query,function (err,users) {
+            assert.equal(null,err);
+            if(!users){
+                resolve({
+                    code:101,
+                    data:'',
+                    message:'用户名或密码错误'
+                })
+            }else {
+                let token  =  new Date()-0
+
+                Model.User.update(query, {$set :{token:token}},function(error){
+                    assert.equal(null,error)
+
+                    Model.User.findOne(query,function (err,datas) {
+                        assert.equal(null,error)
+                        resolve({
+                            code:100,
+                            data:datas,
+                            message:'登陆成功'
+                        })
+                    })
+
+                })
+            }
         })
-      }else {
-        let token  =  new Date()-0
-
-        Model.User.update(query, {$set :{token:token}},function(error){
-          assert.equal(null,error)
-
-          Model.User.findOne(query,function (err,datas) {
-            assert.equal(null,error)
-            resolve({
-              code:100,
-              data:datas,
-              message:'登陆成功'
-            })
-          })
-
-        })
-      }
     })
-  })
-  ctx.body =await promist
+    ctx.body =await promist
+})
+router.post('/login/logout',async (ctx, next) => {
+    ctx.body ={
+      code:100,
+      body:'',
+      msg:'退出登录'
+    }
 })
 router.get('/user/info',async (ctx, next) => {
 
@@ -717,7 +732,7 @@ router.post('/article/updateStatus',async (ctx, next) => {
 })
 
 const defaultParams = {
-  userName: 'jk'
+  userName: 'dk'
 }
 //前端
 //param: {id: 'string1'}
@@ -1073,7 +1088,8 @@ router.post('/articleFront/upload', async function(ctx, next) {
       code: 100,
       msg: '',
       data: {
-        imgUrl: `http://pb9ts7ae2.bkt.clouddn.com/${qiniu.key}`
+        // imgUrl: `http://pb9ts7ae2.bkt.clouddn.com/${qiniu.key}`
+        imgUrl: `https://img.kylvia.top/${qiniu.key}`
       }
     }
   }catch (e){
@@ -1201,7 +1217,12 @@ router.get('/messageFront/classes',async (ctx, next) => {
   })
 })*/
 
-app.use(router.routes())
-  .use(router.allowedMethods());
 
-app.listen(port);
+// https.createServer(options,app.use(router.routes()).use(router.allowedMethods())).listen(port);
+
+app.use(router.routes())
+    .use(router.allowedMethods());
+
+https.createServer(options, app.callback()).listen(port);
+
+// app.listen(port);
